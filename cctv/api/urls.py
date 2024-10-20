@@ -22,6 +22,7 @@ urlpatterns = [
     path('changepassword/', ChangeUserPasswordView.as_view(), name='changepassword'),
     path('send-password-reset-email/', SendPasswordResetEmailView.as_view(), name='send-password-reset-email'),
     path('user/reset-password/<str:uidb64>/<str:token>/', UserPasswordResetView.as_view(), name='password_reset'),
+    
 
 
 ]

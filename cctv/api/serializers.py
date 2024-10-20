@@ -24,32 +24,31 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
     def validate(self, data):
+        # Check if passwords match
         if data.get('password') != data.get('password_confirm'):
             raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
         return data
 
     def create(self, validated_data):
         password = validated_data.pop('password')
-        password_confirm = validated_data.pop('password_confirm')
+        validated_data.pop('password_confirm')  # No need to pass password_confirm to create_user
+
         user = User.objects.create_user(
             email=validated_data['email'],
-            password=password,
-            password_confirm=password_confirm,
             role=validated_data.get('role', 'USER')
         )
+        user.set_password(password)  # Use set_password to properly hash the password
+        user.save()
+
         return user
 
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
-        password_confirm = validated_data.pop('password_confirm', None)
+        validated_data.pop('password_confirm', None)
 
-        if password and password_confirm:
-            if password != password_confirm:
-                raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
-            instance.set_password(password)
-
+        if password:
+            instance.set_password(password)  # Update password if it's provided
         return super().update(instance, validated_data)
-    
     
 class UserLoginSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)

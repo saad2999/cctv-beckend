@@ -77,7 +77,7 @@ TEMPLATES = [
 ASGI_APPLICATION = 'cctv.asgi.application'
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer'
+        'BACKEND': 'channels.layers.InMemoryChannelLayer'  
     }
 }
 AUTH_USER_MODEL = 'api.User'
@@ -141,13 +141,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.BasicAuthentication'
-    ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ]
+    
 }
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),

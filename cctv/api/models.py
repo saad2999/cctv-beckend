@@ -4,14 +4,15 @@ from django.contrib.auth.models import AbstractUser, BaseUserManager
 
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, password_confirm=None, **extra_fields):
+        if password and password_confirm and password != password_confirm:
+            raise ValueError('Passwords do not match')
         if not email:
             raise ValueError('The Email field must be set')
-        if password != password_confirm:
-            raise ValueError('Passwords do not match')
-
+        
         email = self.normalize_email(email)
         user = self.model(email=email, **extra_fields)
-        user.set_password(password)
+        if password:
+            user.set_password(password)
         user.save(using=self._db)
         return user
 
