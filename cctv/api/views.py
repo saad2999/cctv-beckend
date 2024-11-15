@@ -96,6 +96,8 @@ class CameraViewSet(viewsets.ModelViewSet):
             return Response(serializer.errors, status=400)
 
 from asgiref.sync import sync_to_async
+from asgiref.sync import async_to_sync
+
 
 class UserLoginView(generics.CreateAPIView):
     serializer_class = UserLoginSerializer
@@ -104,14 +106,15 @@ class UserLoginView(generics.CreateAPIView):
     def authenticate_user(self, email, password):
         return authenticate(email=email, password=password)
 
-    async def create(self, request, *args, **kwargs):
+    def create(self, request, *args, **kwargs):
         logger.info("UserLoginView.post method called")
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data.get("email")
         password = serializer.validated_data.get("password")
 
-        user = await self.authenticate_user(email, password)
+        # Run the async authentication function synchronously
+        user = async_to_sync(self.authenticate_user)(email, password)
         if user:
             token = get_tokens_for_user(user)
             return Response({"token": token, "message": "Login successful"}, status=status.HTTP_200_OK)

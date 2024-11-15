@@ -2,17 +2,14 @@ import json
 import cv2
 import base64
 import threading
-from channels.generic.websocket import WebsocketConsumer, AsyncWebsocketConsumer
-from channels.exceptions import StopConsumer
-from .models import Camera
-from .videostream import VideoStream
 import time
-import asyncio
-import logging
-
-from ultralytics import YOLO
 import os
+import logging
+from channels.generic.websocket import WebsocketConsumer
+from channels.exceptions import StopConsumer
+from ultralytics import YOLO
 from django.conf import settings
+from .models import Camera, DetectedFrame
 
 logger = logging.getLogger('custom_logger')
 
@@ -37,10 +34,7 @@ class VideoStreamConsumer(WebsocketConsumer):
         logger.debug("YOLO model initialized")
 
         # Create output directory
-        if hasattr(settings, 'STATIC_ROOT') and settings.STATIC_ROOT:
-            output_dir = os.path.join(settings.STATIC_ROOT, 'videos')
-        else:
-            output_dir = os.path.join(settings.BASE_DIR, 'static', 'videos')
+        output_dir = os.path.join(settings.MEDIA_ROOT, 'detected_frames')
         os.makedirs(output_dir, exist_ok=True)
         logger.info(f"Output directory created: {output_dir}")
 
@@ -85,7 +79,7 @@ class VideoStreamConsumer(WebsocketConsumer):
 
     def stream_video(self):
         logger.info(f"Starting video stream for Camera ID {self.camera_id}")
-        
+
         try:
             camera = self.get_camera()
             cap = cv2.VideoCapture(0)  # Open the webcam
@@ -105,10 +99,23 @@ class VideoStreamConsumer(WebsocketConsumer):
 
                 # Perform object detection
                 results = self.model(frame)
-                
-                # Draw bounding boxes on the frame
-                annotated_frame = results[0].plot()
+
+                # If the model detects objects, it will be in the results object
+                # results[0] refers to the first result, usually, in the format of a list of detections
+                annotated_frame = results[0].plot()  # Annotate the frame
                 logger.debug("Object detection and annotation complete")
+
+                # Save detection results to the database
+                detection_result = self.get_detection_result(results)
+
+                # Create DetectedFrame entry in the database
+                detected_frame = DetectedFrame(
+                    camera=camera,
+                    frame_image=self.save_frame_to_file(annotated_frame),
+                    detection_result=detection_result
+                )
+                detected_frame.save()
+                logger.debug("Detection saved to the database")
 
                 # Write frame to video file
                 self.writer.write(annotated_frame)
@@ -139,32 +146,25 @@ class VideoStreamConsumer(WebsocketConsumer):
     def get_camera(self):
         logger.debug(f"Fetching camera information for Camera ID {self.camera_id}")
         return Camera.objects.get(id=self.camera_id)
-    
-class CameraStreamConsumer(AsyncWebsocketConsumer):
-    async def connect(self):
-        await self.accept()
-        logger.info("WebSocket connection accepted for async video stream")
-        self.video_stream = VideoStream()
-        self.send_frame_task = asyncio.create_task(self.send_frames())
-        logger.debug("Started frame sending task")
 
-    async def disconnect(self, close_code):
-        logger.warning(f"Async WebSocket disconnected with code: {close_code}")
-        self.video_stream.running = False
-        self.send_frame_task.cancel()
-        logger.debug("Frame sending task cancelled")
+    def get_detection_result(self, results):
+        """Extract and return the detection results in a readable format."""
+        detection_result = []
+        for result in results:
+            for detection in result.boxes:
+                label = detection.cls[0]
+                confidence = detection.conf[0]
+                detection_result.append(f"Label: {label}, Confidence: {confidence:.2f}")
+        return "\n".join(detection_result)
 
-    async def send_frames(self):
-        logger.debug("Starting to send frames asynchronously")
-        while True:
-            frame = self.video_stream.get_frame()
-            if frame is not None:
-                _, buffer = cv2.imencode('.jpg', frame)
-                base64_frame = base64.b64encode(buffer).decode('utf-8')
-                await self.send(text_data=json.dumps({
-                    'frame': base64_frame
-                }))
-                logger.debug("Frame sent via async WebSocket")
-            else:
-                logger.warning("No frame available")
-            await asyncio.sleep(0.1)  # Adjust the delay as needed
+    def save_frame_to_file(self, frame):
+        """Save the frame as an image and return the image path."""
+        output_dir = os.path.join(settings.MEDIA_ROOT, 'detected_frames')
+        os.makedirs(output_dir, exist_ok=True)
+
+        timestamp = time.time()
+        frame_filename = f"frame_{timestamp}.jpg"
+        frame_path = os.path.join(output_dir, frame_filename)
+
+        cv2.imwrite(frame_path, frame)
+        return frame_path

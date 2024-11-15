@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.utils import timezone
+
 
 
 class UserManager(BaseUserManager):
@@ -70,3 +72,12 @@ class CameraPermission(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.camera.name}"
 
+
+class DetectedFrame(models.Model):
+    camera = models.ForeignKey('Camera', on_delete=models.CASCADE)
+    frame_image = models.ImageField(upload_to='media/detected/')
+    timestamp = models.DateTimeField(default=timezone.now)
+    detection_result = models.TextField()  # Store detection information (optional)
+    
+    def __str__(self):
+        return f"Detected Frame at {self.timestamp} for Camera {self.camera.id}"

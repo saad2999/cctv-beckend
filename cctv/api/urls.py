@@ -1,6 +1,10 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views, consumer
+from django.conf.urls.static import static 
+from django.conf import settings
+
+
 router = DefaultRouter()
 router.register(r'users', views.UserViewSet)
 router.register(r'cameras', views.CameraViewSet)
@@ -25,5 +29,5 @@ urlpatterns = [
     
 
 
-]
+]+static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
